@@ -1,0 +1,113 @@
+{
+  "items": [
+    {
+      "id": "scrap_metal",
+      "name": "Scrap Metal",
+      "description": "A piece of twisted steel. Useful for crafting tools and fortifications.",
+      "stack": 50,
+      "value": 1,
+      "type": "material"
+    },
+    {
+      "id": "circuit_board",
+      "name": "Circuit Board",
+      "description": "A broken electronics board. Can be salvaged for components.",
+      "stack": 10,
+      "value": 8,
+      "type": "material"
+    },
+    {
+      "id": "ration_pack",
+      "name": "Ration Pack",
+      "description": "Processed food rations. Restores hunger when consumed.",
+      "stack": 5,
+      "value": 5,
+      "type": "consumable",
+      "effects": {"hunger": +25}
+    },
+    {
+      "id": "water_bottle",
+      "name": "Water Bottle",
+      "description": "A bottle of slightly irradiated water. Restores thirst.",
+      "stack": 5,
+      "value": 3,
+      "type": "consumable",
+      "effects": {"thirst": +25}
+    },
+    {
+      "id": "makeshift_knife",
+      "name": "Makeshift Knife",
+      "description": "A sharp piece of scrap mounted on a handle. Basic melee weapon.",
+      "stack": 1,
+      "value": 12,
+      "type": "weapon",
+      "stats": {"atk": 3, "def": 0}
+    }
+  ],
+
+  "enemies": [
+    {
+      "id": "rat_mutant",
+      "name": "Mutant Rat",
+      "description": "Hairless, oversized rats mutated by radiation.",
+      "hp": 8,
+      "atk": 3,
+      "def": 0,
+      "tier": 1,
+      "behavior": "aggressive",
+      "spawn_weight": 40
+    },
+    {
+      "id": "drone_guard",
+      "name": "Security Drone",
+      "description": "A damaged automated drone still defending the facility.",
+      "hp": 12,
+      "atk": 4,
+      "def": 2,
+      "tier": 2,
+      "behavior": "sentinel",
+      "spawn_weight": 20
+    }
+  ],
+
+  "recipes": [
+    {
+      "id": "craft_knife",
+      "name": "Craft Makeshift Knife",
+      "inputs": [["scrap_metal", 3], ["circuit_board", 1]],
+      "output": ["makeshift_knife", 1],
+      "craft_time": 10
+    },
+    {
+      "id": "craft_water_purifier",
+      "name": "Build Water Purifier",
+      "inputs": [["scrap_metal", 10], ["circuit_board", 2]],
+      "output": ["water_purifier", 1],
+      "craft_time": 60
+    }
+  ],
+
+  "zones": [
+    {
+      "id": "residential",
+      "name": "Residential Block",
+      "description": "Abandoned living quarters, often containing basic supplies.",
+      "loot_bias": {"ration_pack": 4, "water_bottle": 3, "scrap_metal": 2},
+      "enemy_tier": 1
+    },
+    {
+      "id": "armory",
+      "name": "Armory",
+      "description": "Storage for weapons and tactical gear.",
+      "loot_bias": {"makeshift_knife": 2, "scrap_metal": 3, "circuit_board": 2},
+      "enemy_tier": 2
+    },
+    {
+      "id": "medbay",
+      "name": "Med-Bay",
+      "description": "Ruined medical center that may still have useful medicine.",
+      "loot_bias": {"water_bottle": 4, "ration_pack": 2, "circuit_board": 1},
+      "enemy_tier": 1
+    }
+  ]
+}
