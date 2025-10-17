@@ -23,7 +23,7 @@
       "stack": 5,
       "value": 5,
       "type": "consumable",
-      "effects": {"hunger": +25}
+      "effects": {"hunger": 25}
     },
     {
       "id": "water_bottle",
@@ -32,7 +32,7 @@
       "stack": 5,
       "value": 3,
       "type": "consumable",
-      "effects": {"thirst": +25}
+      "effects": {"thirst": 25}
     },
     {
       "id": "makeshift_knife",
