@@ -31,7 +31,7 @@ class Player:
         self.y = y
         self.hp = hp
         self.inventory = []
-        self.atk = 2
+        self.atk = 5
         self.def_stat = 1
 
 class Enemy:
