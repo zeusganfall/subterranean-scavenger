@@ -10,27 +10,52 @@
   "depth_settings": [
     {
       "depth": 1,
-      "zone_weights": {"residential": 5, "medbay": 3, "armory": 2},
+      "zone_weights": { "residential": 6, "medbay": 3, "armory": 1 },
+      "enemy_spawn_multiplier": 0.8,
+      "loot_density": 0.35
+    },
+    {
+      "depth": 2,
+      "zone_weights": { "residential": 4, "medbay": 3, "armory": 2 },
       "enemy_spawn_multiplier": 1.0,
       "loot_density": 0.3
     },
     {
       "depth": 3,
-      "zone_weights": {"residential": 2, "medbay": 2, "armory": 6},
-      "enemy_spawn_multiplier": 1.5,
+      "zone_weights": { "residential": 2, "medbay": 3, "armory": 4 },
+      "enemy_spawn_multiplier": 1.2,
+      "loot_density": 0.28
+    },
+    {
+      "depth": 4,
+      "zone_weights": { "armory": 5, "server_farm": 3, "medbay": 2 },
+      "enemy_spawn_multiplier": 1.4,
       "loot_density": 0.25
     },
     {
       "depth": 5,
-      "zone_weights": {"armory": 5, "server_farm": 3, "medbay": 2},
+      "zone_weights": { "server_farm": 4, "armory": 4, "reactor_core": 2 },
+      "enemy_spawn_multiplier": 1.8,
+      "loot_density": 0.22
+    },
+    {
+      "depth": 6,
+      "zone_weights": { "reactor_core": 5, "armory": 3, "biolab": 2 },
       "enemy_spawn_multiplier": 2.0,
       "loot_density": 0.2
+    },
+    {
+      "depth": 7,
+      "zone_weights": { "reactor_core": 6, "biolab": 3, "server_farm": 1 },
+      "enemy_spawn_multiplier": 2.5,
+      "loot_density": 0.18
     }
   ],
 
   "hazards": {
-    "radiation_hotspot": {"chance": 0.1, "damage_per_turn": 1},
-    "gas_leak": {"chance": 0.05, "effect": "poison"}
+    "radiation_hotspot": { "chance": 0.1, "damage_per_turn": 1 },
+    "gas_leak": { "chance": 0.05, "effect": "poison" },
+    "electrical_fault": { "chance": 0.03, "effect": "shock" }
   },
 
   "seed_rules": {
