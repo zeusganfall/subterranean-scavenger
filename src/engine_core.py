@@ -215,25 +215,40 @@ def check_map_connectivity(game_map: GameMap, rooms: list[Rect]) -> bool:
 
 def _place_enemies(rng: RNG, rooms: list[Rect], enemy_types: dict) -> list[Enemy]:
     enemies = []
-    # Don't spawn in the first room, where the player starts.
-    for room in rooms[1:]:
-        x = rng.randint(room.x1 + 1, room.x2 - 1)
-        y = rng.randint(room.y1 + 1, room.y2 - 1)
+    if not rooms:
+        return enemies
 
-        # Simple logic: place one enemy per room.
-        enemy_id = rng.choice(list(enemy_types.keys()))
-        enemy_data = enemy_types[enemy_id]
+    player_start_room = rooms[0]
+    player_start_pos = (
+        (player_start_room.x1 + player_start_room.x2) // 2,
+        (player_start_room.y1 + player_start_room.y2) // 2,
+    )
 
-        enemy = Enemy(
-            x=x,
-            y=y,
-            enemy_id=enemy_id,
-            name=enemy_data["name"],
-            hp=enemy_data["hp"],
-            atk=enemy_data["atk"],
-            def_stat=enemy_data["def"],
-        )
-        enemies.append(enemy)
+    for room in rooms:
+        # Try to place one enemy per room, avoiding the player's start tile.
+        for _ in range(5):  # 5 attempts to find a valid spot
+            x = rng.randint(room.x1 + 1, room.x2 - 1)
+            y = rng.randint(room.y1 + 1, room.y2 - 1)
+
+            if (x, y) == player_start_pos:
+                continue
+
+            if any(enemy.x == x and enemy.y == y for enemy in enemies):
+                continue
+
+            enemy_id = rng.choice(list(enemy_types.keys()))
+            enemy_data = enemy_types[enemy_id]
+            enemy = Enemy(
+                x=x,
+                y=y,
+                enemy_id=enemy_id,
+                name=enemy_data["name"],
+                hp=enemy_data["hp"],
+                atk=enemy_data["atk"],
+                def_stat=enemy_data["def"],
+            )
+            enemies.append(enemy)
+            break  # Move to the next room after placing one enemy
     return enemies
 
 
