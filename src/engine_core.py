@@ -31,24 +31,48 @@ class Player:
         self.y = y
         self.hp = hp
         self.inventory = []
+        self.atk = 2
+        self.def_stat = 1
+
+class Enemy:
+    def __init__(self, x: int, y: int, enemy_id: str, name: str, hp: int, atk: int, def_stat: int):
+        self.x = x
+        self.y = y
+        self.enemy_id = enemy_id
+        self.name = name
+        self.hp = hp
+        self.atk = atk
+        self.def_stat = def_stat
 
 class Engine:
-    def __init__(self, rng: RNG, game_map: GameMap, player: Player):
+    def __init__(self, rng: RNG, game_map: GameMap, player: Player, enemies: list[Enemy], enemy_types: dict):
         self.rng = rng
         self.game_map = game_map
         self.player = player
+        self.enemies = enemies
+        self.enemy_types = enemy_types
         self.seed = rng.seed
 
     def move_player(self, dx: int, dy: int):
         dest_x = self.player.x + dx
         dest_y = self.player.y + dy
 
+        for enemy in self.enemies:
+            if dest_x == enemy.x and dest_y == enemy.y:
+                # Combat initiated
+                run_combat(self.player, enemy, self)
+                return
+
         if self.game_map.tiles[dest_y][dest_x] == TileType.FLOOR:
             self.player.x = dest_x
             self.player.y = dest_y
 
-def save_game(engine: Engine, filename: str):
+def save_game(engine: Engine, filename:str):
     """Saves the game state to a file."""
+    enemies_data = [
+        {"x": enemy.x, "y": enemy.y, "enemy_id": enemy.enemy_id, "hp": enemy.hp}
+        for enemy in engine.enemies
+    ]
     data = {
         "seed": engine.seed,
         "player": {
@@ -57,7 +81,8 @@ def save_game(engine: Engine, filename: str):
             "hp": engine.player.hp,
             "inventory": engine.player.inventory,
         },
-        "deltas": [], # Not used in this implementation
+        "enemies": enemies_data,
+        "deltas": [],  # Not used in this implementation
     }
     with open(filename, "w") as f:
         json.dump(data, f, indent=4)
@@ -92,12 +117,59 @@ def _create_v_tunnel(game_map: GameMap, y1: int, y2: int, x: int):
     for y in range(min(y1, y2), max(y1, y2) + 1):
         game_map.tiles[y][x] = TileType.FLOOR
 
-def render_map(game_map: GameMap, player_x: int, player_y: int):
+def run_combat(player: Player, enemy: Enemy, engine: Engine):
+    while player.hp > 0 and enemy.hp > 0:
+        print(f"You encounter a {enemy.name}!")
+        print(f"Player HP: {player.hp} | {enemy.name} HP: {enemy.hp}")
+        action = input("Choose action: (a)ttack, (f)lee> ").lower().strip()
+
+        if action == "a":
+            # Player attacks enemy
+            player_damage = max(0, player.atk - enemy.def_stat)
+            enemy.hp -= player_damage
+            print(f"You attack the {enemy.name} for {player_damage} damage.")
+
+            if enemy.hp <= 0:
+                print(f"You defeated the {enemy.name}!")
+                engine.enemies.remove(enemy)
+                break
+
+            # Enemy attacks player
+            enemy_damage = max(0, enemy.atk - player.def_stat)
+            player.hp -= enemy_damage
+            print(f"The {enemy.name} attacks you for {enemy_damage} damage.")
+
+            if player.hp <= 0:
+                print("You have been defeated.")
+                raise SystemExit()
+
+        elif action == "f":
+            print("You flee from the combat.")
+            # Basic flee mechanic: 50% chance to succeed
+            if engine.rng.randint(0, 1) == 1:
+                print("You successfully escaped!")
+                break
+            else:
+                print("You failed to escape!")
+                # Enemy gets a free attack
+                enemy_damage = max(0, enemy.atk - player.def_stat)
+                player.hp -= enemy_damage
+                print(f"The {enemy.name} attacks you for {enemy_damage} damage.")
+                if player.hp <= 0:
+                    print("You have been defeated.")
+                    raise SystemExit()
+        else:
+            print("Invalid action.")
+
+
+def render_map(game_map: GameMap, player_x: int, player_y: int, enemies: list[Enemy]):
     """Renders the map to the console."""
     for y in range(game_map.height):
         for x in range(game_map.width):
             if x == player_x and y == player_y:
                 print("@", end="")
+            elif any(enemy.x == x and enemy.y == y for enemy in enemies):
+                print("E", end="")
             elif game_map.tiles[y][x] == TileType.WALL:
                 print("#", end="")
             else:
@@ -141,7 +213,31 @@ def check_map_connectivity(game_map: GameMap, rooms: list[Rect]) -> bool:
 
     return len(found_centers) == len(room_centers)
 
-def generate_map(rng: RNG, width: int, height: int, max_rooms: int, min_room_size: int, max_room_size: int) -> tuple[GameMap, list[Rect]]:
+def _place_enemies(rng: RNG, rooms: list[Rect], enemy_types: dict) -> list[Enemy]:
+    enemies = []
+    # Don't spawn in the first room, where the player starts.
+    for room in rooms[1:]:
+        x = rng.randint(room.x1 + 1, room.x2 - 1)
+        y = rng.randint(room.y1 + 1, room.y2 - 1)
+
+        # Simple logic: place one enemy per room.
+        enemy_id = rng.choice(list(enemy_types.keys()))
+        enemy_data = enemy_types[enemy_id]
+
+        enemy = Enemy(
+            x=x,
+            y=y,
+            enemy_id=enemy_id,
+            name=enemy_data["name"],
+            hp=enemy_data["hp"],
+            atk=enemy_data["atk"],
+            def_stat=enemy_data["def"],
+        )
+        enemies.append(enemy)
+    return enemies
+
+
+def generate_map(rng: RNG, width: int, height: int, max_rooms: int, min_room_size: int, max_room_size: int, enemy_types: dict) -> tuple[GameMap, list[Rect], list[Enemy]]:
     """Generates a new map with rooms and corridors."""
     while True:
         game_map = GameMap(width, height)
@@ -182,7 +278,8 @@ def generate_map(rng: RNG, width: int, height: int, max_rooms: int, min_room_siz
             rooms.append(new_room)
 
             if check_map_connectivity(game_map, rooms):
-                return game_map, rooms
+                enemies = _place_enemies(rng, rooms, enemy_types)
+                return game_map, rooms, enemies
 
 def load_game(filename: str) -> Engine:
     """Loads a game state from a file."""
@@ -198,16 +295,39 @@ def load_game(filename: str) -> Engine:
     min_room_size = 6
     max_room_size = 10
 
-    game_map, _ = generate_map(rng, map_width, map_height, max_rooms, min_room_size, max_room_size)
+    # TODO: this will regen the map, we should save and load the map state
+    game_map, _, _ = generate_map(rng, map_width, map_height, max_rooms, min_room_size, max_room_size, {})
 
     player_data = data["player"]
     player = Player(player_data["x"], player_data["y"], player_data["hp"])
     player.inventory = player_data["inventory"]
 
-    engine = Engine(rng, game_map, player)
+    content = load_content()
+    enemy_types = {enemy_data["id"]: enemy_data for enemy_data in content["enemies"]}
+
+    enemies_data = data.get("enemies", [])
+    enemies = []
+    for enemy_data in enemies_data:
+        enemy_id = enemy_data["enemy_id"]
+        base_enemy_data = enemy_types[enemy_id]
+        enemy = Enemy(
+            x=enemy_data["x"],
+            y=enemy_data["y"],
+            enemy_id=enemy_id,
+            name=base_enemy_data["name"],
+            hp=enemy_data["hp"],
+            atk=base_enemy_data["atk"],
+            def_stat=base_enemy_data["def"],
+        )
+        enemies.append(enemy)
+
+    engine = Engine(rng, game_map, player, enemies, enemy_types)
     return engine
 
 def main():
+    content = load_content()
+    enemy_types = {enemy_data["id"]: enemy_data for enemy_data in content["enemies"]}
+
     if "--load" in sys.argv:
         engine = load_game("save.json")
         print("Game loaded.")
@@ -228,7 +348,7 @@ def main():
         min_room_size = 6
         max_room_size = 10
 
-        game_map, rooms = generate_map(rng, map_width, map_height, max_rooms, min_room_size, max_room_size)
+        game_map, rooms, enemies = generate_map(rng, map_width, map_height, max_rooms, min_room_size, max_room_size, enemy_types)
 
         player_x, player_y = 0, 0
         if rooms:
@@ -237,10 +357,10 @@ def main():
             player_y = (first_room.y1 + first_room.y2) // 2
 
         player = Player(player_x, player_y)
-        engine = Engine(rng, game_map, player)
+        engine = Engine(rng, game_map, player, enemies, enemy_types)
 
     while True:
-        render_map(engine.game_map, engine.player.x, engine.player.y)
+        render_map(engine.game_map, engine.player.x, engine.player.y, engine.enemies)
 
         action = input("> ").lower().strip()
 
