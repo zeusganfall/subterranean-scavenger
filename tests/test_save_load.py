@@ -13,9 +13,9 @@ class TestSaveLoad(unittest.TestCase):
         self.save_file = "test_save.json"
         self.seed = 12345
         self.rng = RNG(self.seed)
-        self.game_map, rooms = generate_map(self.rng, 80, 45, 30, 6, 10)
+        self.game_map, rooms, enemies = generate_map(self.rng, 80, 45, 30, 6, 10, {})
         self.player = Player(10, 10)
-        self.engine = Engine(self.rng, self.game_map, self.player)
+        self.engine = Engine(self.rng, self.game_map, self.player, enemies, {})
 
     def tearDown(self):
         if os.path.exists(self.save_file):
