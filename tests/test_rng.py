@@ -14,10 +14,10 @@ class TestRNG(unittest.TestCase):
         rng1 = RNG(seed)
         rng2 = RNG(seed)
 
-        map1 = generate_map(rng1, 20, 10)
-        map2 = generate_map(rng2, 20, 10)
+        map1, _ = generate_map(rng1, 20, 10, 5, 3, 5)
+        map2, _ = generate_map(rng2, 20, 10, 5, 3, 5)
 
-        self.assertEqual(map1, map2, "Maps generated with the same seed should be identical")
+        self.assertEqual(map1.tiles, map2.tiles, "Maps generated with the same seed should be identical")
 
 if __name__ == '__main__':
     unittest.main()
