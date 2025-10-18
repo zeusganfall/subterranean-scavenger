@@ -25,6 +25,43 @@ class Rect:
         self.x2 = x + w
         self.y2 = y + h
 
+class Player:
+    def __init__(self, x: int, y: int, hp: int = 100):
+        self.x = x
+        self.y = y
+        self.hp = hp
+        self.inventory = []
+
+class Engine:
+    def __init__(self, rng: RNG, game_map: GameMap, player: Player):
+        self.rng = rng
+        self.game_map = game_map
+        self.player = player
+        self.seed = rng.seed
+
+    def move_player(self, dx: int, dy: int):
+        dest_x = self.player.x + dx
+        dest_y = self.player.y + dy
+
+        if self.game_map.tiles[dest_y][dest_x] == TileType.FLOOR:
+            self.player.x = dest_x
+            self.player.y = dest_y
+
+def save_game(engine: Engine, filename: str):
+    """Saves the game state to a file."""
+    data = {
+        "seed": engine.seed,
+        "player": {
+            "x": engine.player.x,
+            "y": engine.player.y,
+            "hp": engine.player.hp,
+            "inventory": engine.player.inventory,
+        },
+        "deltas": [], # Not used in this implementation
+    }
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=4)
+
 def load_json(path: str):
     with open(Path(path), "r", encoding="utf-8") as f:
         return json.load(f)
@@ -147,21 +184,12 @@ def generate_map(rng: RNG, width: int, height: int, max_rooms: int, min_room_siz
             if check_map_connectivity(game_map, rooms):
                 return game_map, rooms
 
-if __name__ == "__main__":
-    seed = None
-    if len(sys.argv) > 1:
-        try:
-            seed = int(sys.argv[1])
-            print(f"Using seed from command line: {seed}")
-        except ValueError:
-            print(f"Invalid seed: {sys.argv[1]}. Using a random seed.")
+def load_game(filename: str) -> Engine:
+    """Loads a game state from a file."""
+    with open(filename, "r") as f:
+        data = json.load(f)
 
-    rng = RNG(seed)
-    print(f"Initialized with seed: {rng.seed}")
-
-    content = load_content()
-    procgen = load_procgen()
-    print(f"Loaded {len(content['items'])} items, {len(procgen['depth_settings'])} depth profiles.")
+    rng = RNG(data["seed"])
 
     # Map parameters
     map_width = 80
@@ -170,13 +198,65 @@ if __name__ == "__main__":
     min_room_size = 6
     max_room_size = 10
 
-    game_map, rooms = generate_map(rng, map_width, map_height, max_rooms, min_room_size, max_room_size)
+    game_map, _ = generate_map(rng, map_width, map_height, max_rooms, min_room_size, max_room_size)
 
-    player_x, player_y = 0, 0
-    if rooms:
-        first_room = rooms[0]
-        player_x = (first_room.x1 + first_room.x2) // 2
-        player_y = (first_room.y1 + first_room.y2) // 2
+    player_data = data["player"]
+    player = Player(player_data["x"], player_data["y"], player_data["hp"])
+    player.inventory = player_data["inventory"]
 
-    print(f"Generated a {map_width}x{map_height} map with seed {rng.seed}.")
-    render_map(game_map, player_x, player_y)
+    engine = Engine(rng, game_map, player)
+    return engine
+
+def main():
+    if "--load" in sys.argv:
+        engine = load_game("save.json")
+        print("Game loaded.")
+    else:
+        seed = None
+        if len(sys.argv) > 1:
+            try:
+                seed = int(sys.argv[1])
+                print(f"Using seed from command line: {seed}")
+            except ValueError:
+                print(f"Invalid seed: {sys.argv[1]}. Using a random seed.")
+        rng = RNG(seed)
+
+        # Map parameters
+        map_width = 80
+        map_height = 45
+        max_rooms = 30
+        min_room_size = 6
+        max_room_size = 10
+
+        game_map, rooms = generate_map(rng, map_width, map_height, max_rooms, min_room_size, max_room_size)
+
+        player_x, player_y = 0, 0
+        if rooms:
+            first_room = rooms[0]
+            player_x = (first_room.x1 + first_room.x2) // 2
+            player_y = (first_room.y1 + first_room.y2) // 2
+
+        player = Player(player_x, player_y)
+        engine = Engine(rng, game_map, player)
+
+    while True:
+        render_map(engine.game_map, engine.player.x, engine.player.y)
+
+        action = input("> ").lower().strip()
+
+        if action == 'w':
+            engine.move_player(0, -1)
+        elif action == 's':
+            engine.move_player(0, 1)
+        elif action == 'a':
+            engine.move_player(-1, 0)
+        elif action == 'd':
+            engine.move_player(1, 0)
+        elif action == 'p':
+            save_game(engine, "save.json")
+            print("Game saved.")
+        elif action in ["q", "quit"]:
+            raise SystemExit()
+
+if __name__ == "__main__":
+    main()
