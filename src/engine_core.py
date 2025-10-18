@@ -10,6 +10,7 @@ from rng import RNG
 class TileType(Enum):
     WALL = auto()
     FLOOR = auto()
+    STAIRS_DOWN = auto()
 
 class GameMap:
     def __init__(self, width: int, height: int):
@@ -45,13 +46,16 @@ class Enemy:
         self.def_stat = def_stat
 
 class Engine:
-    def __init__(self, rng: RNG, game_map: GameMap, player: Player, enemies: list[Enemy], enemy_types: dict):
+    def __init__(self, rng: RNG, game_map: GameMap, player: Player, enemies: list[Enemy], enemy_types: dict, current_depth: int = 1, deltas=None):
         self.rng = rng
         self.game_map = game_map
         self.player = player
         self.enemies = enemies
         self.enemy_types = enemy_types
         self.seed = rng.seed
+        self.current_depth = current_depth
+        self.level_seeds = {1: self.seed}
+        self.deltas = deltas if deltas is not None else {}
 
     def move_player(self, dx: int, dy: int):
         dest_x = self.player.x + dx
@@ -67,6 +71,49 @@ class Engine:
             self.player.x = dest_x
             self.player.y = dest_y
 
+    def descend(self):
+        """Descend to the next level of the dungeon."""
+        if self.game_map.tiles[self.player.y][self.player.x] != TileType.STAIRS_DOWN:
+            print("You can't descend here.")
+            return
+
+        self.current_depth += 1
+        print(f"You descend deeper into the dungeon, reaching level {self.current_depth}.")
+
+        if self.current_depth not in self.level_seeds:
+            # Derive a new seed for the new level
+            self.level_seeds[self.current_depth] = self.seed + self.current_depth
+
+        level_seed = self.level_seeds[self.current_depth]
+        level_rng = RNG(level_seed)
+
+        # Map parameters (should be centralized later)
+        map_width = 80
+        map_height = 45
+        max_rooms = 30
+        min_room_size = 6
+        max_room_size = 10
+
+        game_map, rooms, enemies = generate_map(level_rng, map_width, map_height, max_rooms, min_room_size, max_room_size, self.enemy_types)
+        self.game_map = game_map
+
+        # Place player
+        if rooms:
+            first_room = rooms[0]
+            self.player.x = (first_room.x1 + first_room.x2) // 2
+            self.player.y = (first_room.y1 + first_room.y2) // 2
+        else:
+            # Failsafe if map gen creates no rooms
+            self.player.x = map_width // 2
+            self.player.y = map_height // 2
+
+        # Apply deltas for the new level
+        level_deltas = self.deltas.get(str(self.current_depth), {})
+        killed_enemies_coords = level_deltas.get("killed_enemies", [])
+
+        self.enemies = [e for e in enemies if {"x": e.x, "y": e.y} not in killed_enemies_coords]
+
+
 def save_game(engine: Engine, filename:str):
     """Saves the game state to a file."""
     enemies_data = [
@@ -75,6 +122,8 @@ def save_game(engine: Engine, filename:str):
     ]
     data = {
         "seed": engine.seed,
+        "level_seeds": engine.level_seeds,
+        "current_depth": engine.current_depth,
         "player": {
             "x": engine.player.x,
             "y": engine.player.y,
@@ -82,7 +131,7 @@ def save_game(engine: Engine, filename:str):
             "inventory": engine.player.inventory,
         },
         "enemies": enemies_data,
-        "deltas": [],  # Not used in this implementation
+        "deltas": engine.deltas,
     }
     with open(filename, "w") as f:
         json.dump(data, f, indent=4)
@@ -131,6 +180,9 @@ def run_combat(player: Player, enemy: Enemy, engine: Engine):
 
             if enemy.hp <= 0:
                 print(f"You defeated the {enemy.name}!")
+                level_deltas = engine.deltas.setdefault(str(engine.current_depth), {})
+                killed_enemies = level_deltas.setdefault("killed_enemies", [])
+                killed_enemies.append({"x": enemy.x, "y": enemy.y})
                 engine.enemies.remove(enemy)
                 break
 
@@ -170,6 +222,8 @@ def render_map(game_map: GameMap, player_x: int, player_y: int, enemies: list[En
                 print("@", end="")
             elif any(enemy.x == x and enemy.y == y for enemy in enemies):
                 print("E", end="")
+            elif game_map.tiles[y][x] == TileType.STAIRS_DOWN:
+                print(">", end="")
             elif game_map.tiles[y][x] == TileType.WALL:
                 print("#", end="")
             else:
@@ -215,7 +269,7 @@ def check_map_connectivity(game_map: GameMap, rooms: list[Rect]) -> bool:
 
 def _place_enemies(rng: RNG, rooms: list[Rect], enemy_types: dict) -> list[Enemy]:
     enemies = []
-    if not rooms:
+    if not rooms or not enemy_types:
         return enemies
 
     player_start_room = rooms[0]
@@ -294,6 +348,11 @@ def generate_map(rng: RNG, width: int, height: int, max_rooms: int, min_room_siz
 
             if check_map_connectivity(game_map, rooms):
                 enemies = _place_enemies(rng, rooms, enemy_types)
+                if rooms:
+                    last_room = rooms[-1]
+                    stair_x = (last_room.x1 + last_room.x2) // 2
+                    stair_y = (last_room.y1 + last_room.y2) // 2
+                    game_map.tiles[stair_y][stair_x] = TileType.STAIRS_DOWN
                 return game_map, rooms, enemies
 
 def load_game(filename: str) -> Engine:
@@ -301,7 +360,13 @@ def load_game(filename: str) -> Engine:
     with open(filename, "r") as f:
         data = json.load(f)
 
-    rng = RNG(data["seed"])
+    current_depth = data.get("current_depth", 1)
+    level_seeds = data.get("level_seeds", {1: data["seed"]})
+    # Ensure level_seeds keys are integers
+    level_seeds = {int(k): v for k, v in level_seeds.items()}
+
+    level_seed = level_seeds[current_depth]
+    rng = RNG(level_seed)
 
     # Map parameters
     map_width = 80
@@ -310,16 +375,16 @@ def load_game(filename: str) -> Engine:
     min_room_size = 6
     max_room_size = 10
 
-    # TODO: this will regen the map, we should save and load the map state
-    game_map, _, _ = generate_map(rng, map_width, map_height, max_rooms, min_room_size, max_room_size, {})
+    content = load_content()
+    enemy_types = {enemy_data["id"]: enemy_data for enemy_data in content["enemies"]}
+    # We generate the map, but will replace the enemies with the loaded state.
+    game_map, _, _ = generate_map(rng, map_width, map_height, max_rooms, min_room_size, max_room_size, enemy_types)
 
     player_data = data["player"]
     player = Player(player_data["x"], player_data["y"], player_data["hp"])
     player.inventory = player_data["inventory"]
 
-    content = load_content()
-    enemy_types = {enemy_data["id"]: enemy_data for enemy_data in content["enemies"]}
-
+    # Load enemies from save file to preserve their state (e.g., HP) on the current level
     enemies_data = data.get("enemies", [])
     enemies = []
     for enemy_data in enemies_data:
@@ -336,7 +401,11 @@ def load_game(filename: str) -> Engine:
         )
         enemies.append(enemy)
 
-    engine = Engine(rng, game_map, player, enemies, enemy_types)
+    deltas = data.get("deltas", {})
+
+    engine = Engine(rng, game_map, player, enemies, enemy_types, current_depth, deltas)
+    engine.seed = data["seed"]  # This is the master seed
+    engine.level_seeds = level_seeds
     return engine
 
 def main():
@@ -387,6 +456,8 @@ def main():
             engine.move_player(-1, 0)
         elif action == 'd':
             engine.move_player(1, 0)
+        elif action == '>':
+            engine.descend()
         elif action == 'p':
             save_game(engine, "save.json")
             print("Game saved.")
